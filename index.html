@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Universal de Relatórios - Novo Nordisk</title>
+    <!-- ADICIONE ESTA LINHA no <head> -->
+<script src="https://unpkg.com/docx@7.8.2/build/index.js"></script>
+
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+            .then(reg => {
+                console.log('✅ Service Worker registrado:', reg);
+                
+                // Simular porta local
+                const porta = 5500;
+                const url = `http://localhost:${porta}`;
+                
+                console.log('🌐 "Servidor" rodando em:', url);
+                console.log('📡 Na verdade é:', window.location.href);
+            })
+            .catch(err => console.error('❌ Erro:', err));
+    });
+}
+</script>
+<!-- Font Awesome 6.5 -->
+<link rel="stylesheet" href="https://unpkg.com/@fortawesome/fontawesome-free@6.5.1/css/all.min.css"> 
+<!-- ==================== ADICIONAR NO <head> DO HTML ==================== -->
+<!-- Biblioteca Mammoth.js para conversão Word -->
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+
+<!-- JSZip para manipular arquivos .docx -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- CSS Customizado -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ==================== BOTÕES TOGGLE FLUTUANTES ==================== -->
+<button class="sidebar-toggle-left" id="toggleLeftSidebar" title="Editor de Capa (F1)">
+    <i class="fas fa-paint-brush"></i>
+    <span>CAPA</span>
+</button>
+
+<button class="sidebar-toggle-right" id="toggleRightSidebar" title="Ajuda (F2)">
+    <i class="fas fa-question-circle"></i>
+    <span>AJUDA</span>
+</button>
+
+<!-- ==================== HEADER ESTILO WORD ==================== -->
+<header class="word-style-header">
+    <!-- Barra Superior -->
+    <div class="header-top-bar">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="logo-section">
+                    <div class="company-logo">
+                        <i class="fas fa-file-invoice"></i>
+                    </div>
+                    <div class="logo-text">
+                        <h1>Sistema Universal de Relatórios</h1>
+                    </div>
+                </div>
+                
+                <div class="quick-actions">
+                    <button class="btn-icon" onclick="sistema.salvarDados()" title="Salvar (Ctrl+S)">
+                        <i class="fas fa-save"></i>
+                    </button>
+                    <button class="btn-icon" onclick="desfazer()" title="Desfazer (Ctrl+Z)">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                    <button class="btn-icon" onclick="refazer()" title="Refazer (Ctrl+Y)">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                    <button class="btn-icon" onclick="abrirAmbasSidebars()" title="Abrir Painéis (F3)">
+                        <i class="fas fa-columns"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Abas Estilo Word -->
+    <div class="header-tabs">
+        <div class="container-fluid">
+            <ul class="nav-tabs-word">
+                <li class="tab-item active" data-tab="home" onclick="trocarAba('home')">
+                    <i class="fas fa-home"></i> Início
+                </li>
+                <li class="tab-item" data-tab="insert" onclick="trocarAba('insert')">
+                    <i class="fas fa-plus-circle"></i> Inserir
+                </li>
+                <li class="tab-item" data-tab="format" onclick="trocarAba('format')">
+                    <i class="fas fa-paint-brush"></i> Formatar
+                </li>
+                <li class="tab-item" data-tab="layout" onclick="trocarAba('layout')">
+                    <i class="fas fa-file-alt"></i> Layout
+                </li>
+                <li class="tab-item" data-tab="review" onclick="trocarAba('review')">
+                    <i class="fas fa-check-circle"></i> Revisão
+                </li>
+                <li class="tab-item" data-tab="export" onclick="trocarAba('export')">
+                    <i class="fas fa-download"></i> Exportar
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Ribbon de Ferramentas -->
+    <div class="ribbon-container">
+        <div class="container-fluid">
+            
+            <!-- ===== ABA HOME ===== -->
+            <div class="ribbon-content active" id="ribbon-home">
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Área de Transferência</div>
+                    <div class="ribbon-buttons">
+                        <button class="ribbon-btn ribbon-btn-large" onclick="copiar()">
+                            <i class="fas fa-copy"></i>
+                            <span>Copiar</span>
+                        </button>
+                        <button class="ribbon-btn ribbon-btn-large" onclick="colar()">
+                            <i class="fas fa-paste"></i>
+                            <span>Colar</span>
+                        </button>
+                        <button class="ribbon-btn ribbon-btn-large" onclick="recortar()">
+                            <i class="fas fa-cut"></i>
+                            <span>Recortar</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="ribbon-separator"></div>
+
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Fonte</div>
+                    <div class="ribbon-buttons ribbon-buttons-small">
+                        <select class="form-select form-select-sm" id="fontFamily" onchange="aplicarFonte()" style="width: 150px;">
+                            <option value="Times New Roman">Times New Roman</option>
+                            <option value="Arial">Arial</option>
+                            <option value="Calibri">Calibri</option>
+                            <option value="Georgia">Georgia</option>
+                            <option value="Verdana">Verdana</option>
+                        </select>
+                        <select class="form-select form-select-sm" id="fontSize" onchange="aplicarTamanhoFonte()" style="width: 70px;">
+                            <option value="10">10</option>
+                            <option value="11">11</option>
+                            <option value="12" selected>12</option>
+                            <option value="14">14</option>
+                            <option value="16">16</option>
+                            <option value="18">18</option>
+                            <option value="20">20</option>
+                        </select>
+                        <button class="ribbon-btn-icon" onclick="aplicarNegrito()" title="Negrito">
+                            <i class="fas fa-bold"></i>
+                        </button>
+                        <button class="ribbon-btn-icon" onclick="aplicarItalico()" title="Itálico">
+                            <i class="fas fa-italic"></i>
+                        </button>
+                        <button class="ribbon-btn-icon" onclick="aplicarSublinhado()" title="Sublinhado">
+                            <i class="fas fa-underline"></i>
+                        </button>
+                        <input type="color" class="color-picker" id="textColor" onchange="aplicarCorTexto()" title="Cor do Texto">
+                    </div>
+                </div>
+
+                <div class="ribbon-separator"></div>
+
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Parágrafo</div>
+                    <div class="ribbon-buttons ribbon-buttons-small">
+                        <button class="ribbon-btn-icon" onclick="alinharEsquerda()" title="Alinhar à Esquerda">
+                            <i class="fas fa-align-left"></i>
+                        </button>
+                        <button class="ribbon-btn-icon" onclick="alinharCentro()" title="Centralizar">
+                            <i class="fas fa-align-center"></i>
+                        </button>
+                        <button class="ribbon-btn-icon" onclick="alinharDireita()" title="Alinhar à Direita">
+                            <i class="fas fa-align-right"></i>
+                        </button>
+                        <button class="ribbon-btn-icon" onclick="justificar()" title="Justificar">
+                            <i class="fas fa-align-justify"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="ribbon-separator"></div>
+
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Documento</div>
+                    <div class="ribbon-buttons">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== ABA INSERIR ===== -->
+            <div class="ribbon-content" id="ribbon-insert">
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Páginas</div>
+                    <div class="ribbon-buttons">
+                        <button class="ribbon-btn ribbon-btn-large" onclick="sistema.inserirQuebraPagina()">
+                            <i class="fas fa-file-alt"></i>
+                            <span>Nova Página</span>
+                        </button>
+                    </div>
+                </div>
+<!-- No ribbon-insert, adicionar: -->
+<div class="ribbon-separator"></div>
+
+<div class="ribbon-group">
+    <div class="ribbon-group-title">Documentos</div>
+    <div class="ribbon-buttons">
+        <button class="ribbon-btn ribbon-btn-large" onclick="mostrarModalImportarWord()">
+            <i class="fas fa-file-word"></i>
+            <span>Importar Word</span>
+        </button>
+    </div>
+</div>
+                <div class="ribbon-separator"></div>
+
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Tabelas</div>
+                    <div class="ribbon-buttons">
+                        <button class="ribbon-btn ribbon-btn-large" onclick="sistema.mostrarModalTabela()">
+                            <i class="fas fa-table"></i>
+                            <span>Tabela</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="ribbon-separator"></div>
+
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Ilustrações</div>
+                    <div class="ribbon-buttons">
+                        <button class="ribbon-btn" onclick="sistema.mostrarModalImagem()">
+                            <i class="fas fa-image"></i>
+                            <span>Imagem</span>
+                        </button>
+                        <button class="ribbon-btn" onclick="mostrarModalUploadMultiplo()">
+                            <i class="fas fa-images"></i>
+                            <span>Múltiplas</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="ribbon-separator"></div>
+
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Texto</div>
+                    <div class="ribbon-buttons ribbon-buttons-small">
+                        <button class="ribbon-btn-icon" onclick="inserirElementoRapido('titulo1')" title="Título 1">
+                            <i class="fas fa-heading"></i> H1
+                        </button>
+                        <button class="ribbon-btn-icon" onclick="inserirElementoRapido('titulo2')" title="Título 2">
+                            <i class="fas fa-heading"></i> H2
+                        </button>
+                        <button class="ribbon-btn-icon" onclick="inserirElementoRapido('paragrafo')" title="Parágrafo">
+                            <i class="fas fa-paragraph"></i>
+                        </button>
+                        <button class="ribbon-btn-icon" onclick="inserirElementoRapido('lista')" title="Lista">
+                            <i class="fas fa-list-ul"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="ribbon-separator"></div>
+
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">PDFs</div>
+                    <div class="ribbon-buttons">
+                        <button class="ribbon-btn ribbon-btn-large" onclick="mostrarModalJuntarPDF()">
+                            <i class="fas fa-file-pdf"></i>
+                            <span>Juntar PDF</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== ABA FORMATAR ===== -->
+            <div class="ribbon-content" id="ribbon-format">
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Estilos de Texto</div>
+                    <div class="ribbon-buttons ribbon-buttons-small">
+                        <button class="ribbon-btn-icon" onclick="aplicarEstilo('negrito')">
+                            <i class="fas fa-bold"></i>
+                        </button>
+                        <button class="ribbon-btn-icon" onclick="aplicarEstilo('italico')">
+                            <i class="fas fa-italic"></i>
+                        </button>
+                        <button class="ribbon-btn-icon" onclick="aplicarEstilo('sublinhado')">
+                            <i class="fas fa-underline"></i>
+                        </button>
+                        <button class="ribbon-btn-icon" onclick="aplicarEstilo('tachado')">
+                            <i class="fas fa-strikethrough"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="ribbon-separator"></div>
+
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Cores</div>
+                    <div class="ribbon-buttons">
+                        <div class="d-flex gap-2 align-items-center">
+                            <label class="small mb-0">Texto:</label>
+                            <input type="color" class="color-picker" id="textColorFormat" onchange="aplicarCorTexto()" value="#000000">
+                            <label class="small mb-0">Fundo:</label>
+                            <input type="color" class="color-picker" id="bgColor" onchange="aplicarCorFundo()" value="#ffffff">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ribbon-separator"></div>
+
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Limpar</div>
+                    <div class="ribbon-buttons">
+                        <button class="ribbon-btn" onclick="limparFormatacao()">
+                            <i class="fas fa-eraser"></i>
+                            <span>Limpar Formatação</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== ABA LAYOUT ===== -->
+            <div class="ribbon-content" id="ribbon-layout">
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Margens</div>
+                    <div class="ribbon-buttons">
+                        <button class="ribbon-btn" onclick="ajustarMargem('normal')">
+                            <i class="fas fa-arrows-alt"></i>
+                            <span>Normal</span>
+                        </button>
+                        <button class="ribbon-btn" onclick="ajustarMargem('estreita')">
+                            <i class="fas fa-compress-alt"></i>
+                            <span>Estreita</span>
+                        </button>
+                        <button class="ribbon-btn" onclick="ajustarMargem('larga')">
+                            <i class="fas fa-expand-alt"></i>
+                            <span>Larga</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="ribbon-separator"></div>
+
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Orientação</div>
+                    <div class="ribbon-buttons">
+                        <button class="ribbon-btn" onclick="orientacaoRetrato()">
+                            <i class="fas fa-file"></i>
+                            <span>Retrato</span>
+                        </button>
+                        <button class="ribbon-btn" onclick="orientacaoPaisagem()">
+                            <i class="fas fa-file" style="transform: rotate(90deg);"></i>
+                            <span>Paisagem</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== ABA REVISÃO ===== -->
+            <div class="ribbon-content" id="ribbon-review">
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Buscar</div>
+                    <div class="ribbon-buttons">
+                        <div class="search-box">
+                            <input type="text" class="form-control form-control-sm" id="searchText" placeholder="Buscar..." style="width: 200px;">
+                            <button class="btn btn-sm btn-primary" onclick="buscarTexto()">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ribbon-separator"></div>
+
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Contar</div>
+                    <div class="ribbon-buttons">
+                        <button class="ribbon-btn" onclick="contarPalavras()">
+                            <i class="fas fa-calculator"></i>
+                            <span>Contar Palavras</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== ABA EXPORTAR ===== -->
+            <div class="ribbon-content" id="ribbon-export">
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Exportar Como</div>
+                    <div class="ribbon-buttons">
+                        <button class="ribbon-btn ribbon-btn-large" onclick="exportarPDF()">
+                            <i class="fas fa-file-pdf"></i>
+                            <span>PDF</span>
+                        </button>
+                        <button class="ribbon-btn ribbon-btn-large" onclick="exportarHTML()">
+                            <i class="fas fa-code"></i>
+                            <span>HTML</span>
+                        </button>
+                    </div>
+                </div>
+<!-- ADICIONE ESTE BOTÃO após o botão de Exportar PDF -->
+<div class="action-item" style="display: flex; flex-direction: column; align-items: center; cursor: pointer;">
+    <button class="btn-icon" onclick="exportarWord()" title="Exportar para Word (.docx)">
+        <i class="fas fa-file-word" style="color: #0056b3;"></i>
+    </button>
+    <span style="font-size: 0.7rem; margin-top: 0.25rem;">Exportar Word</span>
+</div>
+
+
+<div class="ribbon-group">
+    <button class="ribbon-btn" onclick="mostrarModalOneDrive()" title="Inserir fotos do OneDrive">
+        <i class="fab fa-microsoft"></i>
+        <span>OneDrive</span>
+    </button>
+</div>
+                <div class="ribbon-separator"></div>
+
+                <div class="ribbon-group">
+                    <div class="ribbon-group-title">Imprimir</div>
+                    <div class="ribbon-buttons">
+                        <button class="ribbon-btn ribbon-btn-large" onclick="imprimirDocumento()">
+                            <i class="fas fa-print"></i>
+                            <span>Imprimir</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</header>
+
+<!-- ==================== MAIN CONTAINER ==================== -->
+<div class="main-container">
+    
+    <!-- ==================== SIDEBAR ESQUERDA - EDITOR DE CAPA ==================== -->
+    <div class="left-sidebar" id="leftSidebar">
+        <button class="sidebar-close-btn" onclick="fecharSidebar('left')">
+            <i class="fas fa-times"></i>
+        </button>
+        
+        <div class="cover-editor-card">
+            <h3><i class="fas fa-paint-brush"></i> Editor de Capa</h3>
+            
+            <!-- Abas do Editor -->
+            <ul class="nav nav-tabs mb-3" id="editorTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="elementos-tab" data-bs-toggle="tab" data-bs-target="#elementos" type="button">
+                        <i class="fas fa-shapes"></i> Elementos
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="background-tab" data-bs-toggle="tab" data-bs-target="#background" type="button">
+                        <i class="fas fa-image"></i> Background
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="templates-tab" data-bs-toggle="tab" data-bs-target="#templates" type="button">
+                        <i class="fas fa-layer-group"></i> Templates
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="editorTabContent">
+                
+                <!-- ===== ABA ELEMENTOS ===== -->
+                <div class="tab-pane fade show active" id="elementos" role="tabpanel">
+                    
+                    <div class="element-category">
+                        <h4><i class="fas fa-font"></i> Textos</h4>
+                        <div class="element-grid">
+                            <button class="element-btn" onclick="adicionarElementoCapa('titulo')" draggable="true" ondragstart="iniciarArrastar(event, 'titulo')">
+                                <i class="fas fa-heading"></i>
+                                <span>Título</span>
+                            </button>
+                            <button class="element-btn" onclick="adicionarElementoCapa('subtitulo')" draggable="true" ondragstart="iniciarArrastar(event, 'subtitulo')">
+                                <i class="fas fa-text-height"></i>
+                                <span>Subtítulo</span>
+                            </button>
+                            <button class="element-btn" onclick="adicionarElementoCapa('paragrafo')" draggable="true" ondragstart="iniciarArrastar(event, 'paragrafo')">
+                                <i class="fas fa-paragraph"></i>
+                                <span>Parágrafo</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="element-category">
+                        <h4><i class="fas fa-shapes"></i> Formas</h4>
+                        <div class="element-grid">
+                            <button class="element-btn" onclick="adicionarElementoCapa('retangulo')" draggable="true" ondragstart="iniciarArrastar(event, 'retangulo')">
+                                <i class="fas fa-square"></i>
+                                <span>Retângulo</span>
+                            </button>
+                            <button class="element-btn" onclick="adicionarElementoCapa('circulo')" draggable="true" ondragstart="iniciarArrastar(event, 'circulo')">
+                                <i class="fas fa-circle"></i>
+                                <span>Círculo</span>
+                            </button>
+                            <button class="element-btn" onclick="adicionarElementoCapa('linha')" draggable="true" ondragstart="iniciarArrastar(event, 'linha')">
+                                <i class="fas fa-minus"></i>
+                                <span>Linha</span>
+                            </button>
+                            <button class="element-btn" onclick="adicionarElementoCapa('triangulo')" draggable="true" ondragstart="iniciarArrastar(event, 'triangulo')">
+                                <i class="fas fa-play"></i>
+                                <span>Triângulo</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="element-category">
+                        <h4><i class="fas fa-icons"></i> Ícones</h4>
+                        <div class="element-grid">
+                            <button class="element-btn" onclick="adicionarElementoCapa('icone-medicamento')" draggable="true" ondragstart="iniciarArrastar(event, 'icone-medicamento')">
+                                <i class="fas fa-pills"></i>
+                                <span>Medicamento</span>
+                            </button>
+                            <button class="element-btn" onclick="adicionarElementoCapa('icone-fabrica')" draggable="true" ondragstart="iniciarArrastar(event, 'icone-fabrica')">
+                                <i class="fas fa-industry"></i>
+                                <span>Fábrica</span>
+                            </button>
+                            <button class="element-btn" onclick="adicionarElementoCapa('icone-certificado')" draggable="true" ondragstart="iniciarArrastar(event, 'icone-certificado')">
+                                <i class="fas fa-certificate"></i>
+                                <span>Certificado</span>
+                            </button>
+                            <button class="element-btn" onclick="adicionarElementoCapa('icone-dna')" draggable="true" ondragstart="iniciarArrastar(event, 'icone-dna')">
+                                <i class="fas fa-dna"></i>
+                                <span>DNA</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="element-category">
+                        <h4><i class="fas fa-image"></i> Imagens</h4>
+                        <label class="upload-area">
+                            <input type="file" id="uploadImagemCapa" accept="image/*" onchange="adicionarImagemCapa()" style="display: none;">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <span>Clique para Upload</span>
+                        </label>
+                    </div>
+
+                    <div class="element-category">
+                        <h4><i class="fas fa-crown"></i> Logo Empresa</h4>
+                        <label class="upload-area">
+                            <input type="file" id="uploadLogoCapa" accept="image/*" onchange="adicionarLogoCapa()" style="display: none;">
+                            <i class="fas fa-building"></i>
+                            <span>Upload Logo</span>
+                        </label>
+                    </div>
+
+                </div>
+
+                <!-- ===== ABA BACKGROUND ===== -->
+                <div class="tab-pane fade" id="background" role="tabpanel">
+                    
+                    <div class="element-category">
+                        <h4><i class="fas fa-palette"></i> Cor Sólida</h4>
+                        <div class="color-palette">
+                            <button class="color-btn" style="background: #ffffff;" onclick="aplicarCorFundoCapa('#ffffff')" title="Branco"></button>
+                            <button class="color-btn" style="background: #003087;" onclick="aplicarCorFundoCapa('#003087')" title="Azul Novo Nordisk"></button>
+                            <button class="color-btn" style="background: #0056b3;" onclick="aplicarCorFundoCapa('#0056b3')" title="Azul Escuro"></button>
+                            <button class="color-btn" style="background: #4a90e2;" onclick="aplicarCorFundoCapa('#4a90e2')" title="Azul Claro"></button>
+                            <button class="color-btn" style="background: #f8f9fa;" onclick="aplicarCorFundoCapa('#f8f9fa')" title="Cinza Claro"></button>
+                            <button class="color-btn" style="background: #1e293b;" onclick="aplicarCorFundoCapa('#1e293b')" title="Cinza Escuro"></button>
+                            <button class="color-btn" style="background: #10b981;" onclick="aplicarCorFundoCapa('#10b981')" title="Verde"></button>
+                            <button class="color-btn" style="background: #ef4444;" onclick="aplicarCorFundoCapa('#ef4444')" title="Vermelho"></button>
+                        </div>
+                        <input type="color" class="form-control mt-2" id="corPersonalizadaCapa" onchange="aplicarCorFundoCapa(this.value)" value="#ffffff">
+                    </div>
+
+                    <div class="element-category">
+                        <h4><i class="fas fa-fill-drip"></i> Gradientes</h4>
+                        <div class="gradient-grid">
+                            <button class="gradient-btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" onclick="aplicarGradienteCapa('linear-gradient(135deg, #667eea 0%, #764ba2 100%)')"></button>
+                            <button class="gradient-btn" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);" onclick="aplicarGradienteCapa('linear-gradient(135deg, #f093fb 0%, #f5576c 100%)')"></button>
+                            <button class="gradient-btn" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);" onclick="aplicarGradienteCapa('linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)')"></button>
+                            <button class="gradient-btn" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);" onclick="aplicarGradienteCapa('linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)')"></button>
+                            <button class="gradient-btn" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);" onclick="aplicarGradienteCapa('linear-gradient(135deg, #fa709a 0%, #fee140 100%)')"></button>
+                            <button class="gradient-btn" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);" onclick="aplicarGradienteCapa('linear-gradient(135deg, #30cfd0 0%, #330867 100%)')"></button>
+                            <button class="gradient-btn" style="background: linear-gradient(135deg, #003087 0%, #0056b3 100%);" onclick="aplicarGradienteCapa('linear-gradient(135deg, #003087 0%, #0056b3 100%)')"></button>
+                            <button class="gradient-btn" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);" onclick="aplicarGradienteCapa('linear-gradient(135deg, #1e293b 0%, #334155 100%)')"></button>
+                        </div>
+                    </div>
+
+                    <div class="element-category">
+                        <h4><i class="fas fa-image"></i> Imagem de Fundo</h4>
+                        <label class="upload-area">
+                            <input type="file" id="uploadBackgroundCapa" accept="image/*" onchange="aplicarImagemFundoCapa()" style="display: none;">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <span>Upload Background</span>
+                        </label>
+                        
+                        <div class="mt-3">
+                            <label>Opacidade do Fundo</label>
+                            <input type="range" class="form-range" id="opacidadeFundo" min="0" max="100" value="100" oninput="ajustarOpacidadeFundo(this.value)">
+                            <span id="opacidadeValor">100%</span>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-outline-danger w-100 mt-3" onclick="limparFundoCapa()">
+                        <i class="fas fa-eraser"></i> Limpar Fundo
+                    </button>
+
+                </div>
+
+<!-- ===== ABA TEMPLATES ===== -->
+<div class="tab-pane fade" id="templates" role="tabpanel">
+    
+    <div class="alert alert-success small">
+        <i class="fas fa-info-circle"></i>
+        <strong>Templates Prontos!</strong> Clique para aplicar automaticamente.
+    </div>
+    
+    <!-- TEMPLATE 1: NOVO NORDISK CLÁSSICO -->
+    <div class="template-list">
+        <button class="template-btn" onclick="if(editorCapa?.inicializado) { editorCapa.templateNovoNordiskClassico(); } else { alert('Aguarde...'); }">
+            <div class="template-preview" style="background: white; position: relative; overflow: hidden;">
+                <!-- Logo simulado -->
+                <div style="position: absolute; top: 8%; left: 8%; width: 15%; height: 8%; background: #003087; border-radius: 4px;"></div>
+                
+                <!-- Faixa azul central -->
+                <div style="position: absolute; top: 42%; left: 0; right: 0; height: 16%; background: linear-gradient(90deg, #001F54, #003087);"></div>
+                
+                <!-- Linha rodapé -->
+                <div style="position: absolute; bottom: 12%; left: 10%; right: 10%; height: 1px; background: #000;"></div>
+                
+                <!-- Texto rodapé simulado -->
+                <div style="position: absolute; bottom: 8%; left: 15%; right: 15%; height: 3%; background: #e5e7eb; border-radius: 2px;"></div>
+                <div style="position: absolute; bottom: 5%; left: 20%; right: 20%; height: 2%; background: #e5e7eb; border-radius: 2px;"></div>
+            </div>
+            <span>Template 1: Novo Nordisk Clássico</span>
+        </button>
+        
+        <!-- TEMPLATE 2: NOVO NORDISK GEOMÉTRICO -->
+        <button class="template-btn" onclick="if(editorCapa?.inicializado) { editorCapa.templateNovoNordiskGeometrico(); } else { alert('Aguarde...'); }">
+            <div class="template-preview" style="background: white; position: relative; overflow: hidden;">
+                <!-- Ondas esquerdas -->
+                <div style="position: absolute; top: 10%; left: -15%; width: 45%; height: 60%; background: linear-gradient(135deg, rgba(180, 207, 232, 0.4), rgba(127, 168, 209, 0.6)); border-radius: 0 100px 100px 0;"></div>
+                
+                <!-- Ondas direitas -->
+                <div style="position: absolute; top: 25%; right: -15%; width: 45%; height: 60%; background: linear-gradient(225deg, rgba(180, 207, 232, 0.4), rgba(127, 168, 209, 0.6)); border-radius: 100px 0 0 100px;"></div>
+                
+                <!-- Caixa título central -->
+                <div style="position: absolute; top: 45%; left: 15%; right: 15%; height: 14%; background: rgba(255, 255, 255, 0.95); border: 2px solid rgba(0, 86, 179, 0.3); border-radius: 8px; box-shadow: 0 4px 15px rgba(0, 48, 135, 0.2);"></div>
+                
+                <!-- Logo topo -->
+                <div style="position: absolute; top: 5%; left: 40%; width: 20%; height: 8%; background: #003087; border-radius: 4px; opacity: 0.8;"></div>
+            </div>
+            <span>Template 2: Novo Nordisk Geométrico</span>
+        </button>
+        
+        <!-- TEMPLATE 3: AFYA ROSA (EMPRESARIAL) -->
+        <button class="template-btn" onclick="if(editorCapa?.inicializado) { editorCapa.templateAfyaRosa(); } else { alert('Aguarde...'); }">
+            <div class="template-preview" style="background: white; position: relative; overflow: hidden;">
+                <!-- Barra azul superior -->
+                <div style="position: absolute; top: 0; left: 0; right: 0; height: 3%; background: linear-gradient(90deg, #003087, #0056b3);"></div>
+                
+                <!-- Logo + texto esquerda -->
+                <div style="position: absolute; top: 8%; left: 5%; width: 12%; height: 6%; background: #003087; border-radius: 3px;"></div>
+                <div style="position: absolute; top: 16%; left: 18%; width: 20%; height: 2%; background: #003087; border-radius: 2px;"></div>
+                
+                <!-- Forma diagonal grande -->
+                <div style="position: absolute; top: 25%; right: -10%; width: 50%; height: 50%; background: rgba(0, 48, 135, 0.15); border-radius: 50%; transform: rotate(-20deg);"></div>
+                
+                <!-- Campos direita -->
+                <div style="position: absolute; top: 60%; right: 8%; width: 35%; height: 1.5%; background: #e5e7eb; border-radius: 2px; margin-bottom: 2%;"></div>
+                <div style="position: absolute; top: 64%; right: 8%; width: 35%; height: 1.5%; background: #e5e7eb; border-radius: 2px;"></div>
+                <div style="position: absolute; top: 68%; right: 8%; width: 35%; height: 1.5%; background: #e5e7eb; border-radius: 2px;"></div>
+                
+                <!-- Barra azul inferior -->
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 3%; background: linear-gradient(90deg, #003087, #0056b3);"></div>
+            </div>
+            <span>Template 3: Afya Rosa</span>
+        </button>
+        
+        <!-- TEMPLATE 4: CORPORATIVO -->
+        <button class="template-btn" onclick="if(editorCapa?.inicializado) { editorCapa.templateCorporativo(); } else { alert('Aguarde...'); }">
+            <div class="template-preview" style="background: linear-gradient(135deg, #003087 0%, #0056b3 100%); position: relative; overflow: hidden;">
+                <!-- Detalhe canto superior -->
+                <div style="position: absolute; top: 0; left: 0; width: 20%; height: 20%; background: rgba(255, 255, 255, 0.1); border-radius: 0 0 100% 0;"></div>
+                
+                <!-- Logo central -->
+                <div style="position: absolute; top: 12%; left: 40%; width: 20%; height: 10%; background: rgba(255, 255, 255, 0.9); border-radius: 6px;"></div>
+                
+                <!-- Linha dourada -->
+                <div style="position: absolute; top: 25%; left: 30%; right: 30%; height: 2px; background: linear-gradient(90deg, transparent, #FFD700, transparent);"></div>
+                
+                <!-- Título simulado -->
+                <div style="position: absolute; top: 45%; left: 20%; right: 20%; height: 6%; background: rgba(255, 255, 255, 0.2); border-radius: 4px;"></div>
+                
+                <!-- Linha inferior -->
+                <div style="position: absolute; top: 58%; left: 30%; right: 30%; height: 1px; background: rgba(255, 255, 255, 0.4);"></div>
+                
+                <!-- Detalhe canto inferior -->
+                <div style="position: absolute; bottom: 0; right: 0; width: 20%; height: 20%; background: rgba(255, 255, 255, 0.1); border-radius: 100% 0 0 0;"></div>
+            </div>
+            <span>Template 4: Corporativo</span>
+        </button>
+        
+        <!-- TEMPLATE 5: MINIMALISTA -->
+        <button class="template-btn" onclick="if(editorCapa?.inicializado) { editorCapa.templateMinimalista(); } else { alert('Aguarde...'); }">
+            <div class="template-preview" style="background: white; position: relative; overflow: hidden;">
+                <!-- Linha fina topo direita -->
+                <div style="position: absolute; top: 8%; right: 8%; width: 20%; height: 1px; background: #003087;"></div>
+                
+                <!-- Quadrado pequeno -->
+                <div style="position: absolute; top: 10%; right: 8%; width: 4%; height: 4%; background: #003087;"></div>
+                
+                <!-- Logo mini centralizado -->
+                <div style="position: absolute; top: 22%; left: 43%; width: 14%; height: 7%; background: #003087; border-radius: 3px; opacity: 0.6;"></div>
+                
+                <!-- Título grande e espaçado -->
+                <div style="position: absolute; top: 48%; left: 25%; right: 25%; height: 8%; border-bottom: 3px solid #000; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 300; letter-spacing: 8px; color: #000;">RELATÓRIO</div>
+                
+                <!-- Linha fina abaixo título -->
+                <div style="position: absolute; top: 58%; left: 40%; right: 40%; height: 0.5px; background: #64748b;"></div>
+                
+                <!-- Detalhe inferior -->
+                <div style="position: absolute; bottom: 10%; left: 6%; width: 8%; height: 1px; background: #003087;"></div>
+            </div>
+            <span>Template 5: Minimalista</span>
+        </button>
+        
+        <!-- TEMPLATE 6: NOVO NORDISK DIAGONAL -->
+        <button class="template-btn" onclick="if(editorCapa?.inicializado) { editorCapa.templateNovoNordiskDiagonal(); } else { alert('Aguarde...'); }">
+            <div class="template-preview" style="background: white; position: relative; overflow: hidden;">
+                <!-- Logo topo esquerdo -->
+                <div style="position: absolute; top: 5%; left: 6%; width: 18%; height: 9%; background: #003087; border-radius: 4px;"></div>
+                
+                <!-- Linhas diagonais canto inferior esquerdo -->
+                <div style="position: absolute; bottom: 35%; left: 0; width: 35%; height: 1px; background: #E5E7EB; transform: rotate(-45deg); transform-origin: left center;"></div>
+                <div style="position: absolute; bottom: 32%; left: 0; width: 35%; height: 1px; background: #D1D5DB; transform: rotate(-45deg); transform-origin: left center;"></div>
+                <div style="position: absolute; bottom: 29%; left: 0; width: 35%; height: 1px; background: #9CA3AF; transform: rotate(-45deg); transform-origin: left center;"></div>
+                
+                <!-- Gradiente azul claro canto superior direito -->
+                <div style="position: absolute; top: -8%; right: -8%; width: 38%; height: 35%; background: radial-gradient(circle, rgba(180, 207, 232, 0.5), transparent); border-radius: 50%;"></div>
+                
+                <!-- Faixa azul central -->
+                <div style="position: absolute; top: 38%; left: 0; right: 0; height: 15%; background: linear-gradient(90deg, #003087, #00458F);"></div>
+                
+                <!-- Linhas diagonais canto inferior direito -->
+                <div style="position: absolute; bottom: 15%; right: 0; width: 35%; height: 1px; background: #E5E7EB; transform: rotate(-45deg); transform-origin: right center;"></div>
+            </div>
+            <span>Template 6: Novo Nordisk Diagonal</span>
+        </button>
+        
+        <!-- TEMPLATE 7: DOCUMENTAÇÃO MINIMALISTA -->
+<!-- TEMPLATE 7: DOCUMENTAÇÃO MINIMALISTA REDESIGN -->
+<button class="template-btn" onclick="if(editorCapa?.inicializado) { editorCapa.templateDocumentacaoMinimalista(); } else { alert('Aguarde...'); }">
+    <div class="template-preview" style="background: white; position: relative; overflow: hidden;">
+        <!-- Barra lateral fina -->
+        <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 1.5%; background: linear-gradient(180deg, #001F54, #003087, #0056b3);"></div>
+        
+        <!-- Círculos decorativos topo -->
+        <div style="position: absolute; top: 12%; right: 10%; width: 22%; height: 18%; background: radial-gradient(circle, rgba(0, 86, 179, 0.12), transparent); border-radius: 50%;"></div>
+        <div style="position: absolute; top: 8%; right: 15%; width: 15%; height: 12%; background: radial-gradient(circle, rgba(0, 48, 135, 0.15), transparent); border-radius: 50%;"></div>
+        
+        <!-- Título -->
+        <div style="position: absolute; left: 22%; top: 20%; width: 55%; height: 9%; border-bottom: 3px solid #003087; display: flex; align-items: center; font-size: 1.2rem; font-weight: 300; letter-spacing: 2px; color: #1e293b;">DOCUMENTAÇÃO</div>
+        
+        <!-- Linha azul decorativa -->
+        <div style="position: absolute; left: 22%; top: 28%; width: 15%; height: 3px; background: linear-gradient(90deg, #003087, #0056b3); border-radius: 2px;"></div>
+        
+        <!-- Caixa de data -->
+        <div style="position: absolute; left: 6%; top: 42%; width: 17%; height: 7%; background: linear-gradient(135deg, #003087, #0056b3); border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 48, 135, 0.25);"></div>
+        
+        <!-- Linhas decorativas inferiores -->
+        <div style="position: absolute; bottom: 18%; left: 6%; width: 3px; height: 12%; background: linear-gradient(180deg, #003087, transparent); border-radius: 2px;"></div>
+        <div style="position: absolute; bottom: 20%; left: 9%; width: 2px; height: 10%; background: linear-gradient(180deg, #0056b3, transparent); border-radius: 2px;"></div>
+        <div style="position: absolute; bottom: 22%; left: 11%; width: 1.5px; height: 8%; background: linear-gradient(180deg, #4a90e2, transparent); border-radius: 2px;"></div>
+        
+        <!-- Caixa de assinatura -->
+        <div style="position: absolute; bottom: 10%; right: 8%; width: 34%; height: 8%; background: linear-gradient(135deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.98)); border: 2px solid #e2e8f0; border-radius: 8px; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);"></div>
+    </div>
+    <span>Template 7: Documentação Profissional</span>
+</button>
+    </div>
+    
+    <hr>
+    
+    <!-- Botão Começar do Zero -->
+    <div class="mb-3">
+        <button class="btn btn-outline-info w-100" 
+                onclick="if(editorCapa?.inicializado) { editorCapa.limparCanvas(); } else { alert('Aguarde...'); }">
+            <i class="fas fa-eraser"></i> Começar do Zero
+        </button>
+    </div>
+</div>
+
+            </div>
+
+            <!-- Ações Rápidas -->
+            <div class="quick-actions-editor mt-4">
+                <button class="btn btn-outline-secondary btn-sm" onclick="desfazerCapa()">
+                    <i class="fas fa-undo"></i> Desfazer
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="refazerCapa()">
+                    <i class="fas fa-redo"></i> Refazer
+                </button>
+                <button class="btn btn-outline-danger btn-sm" onclick="<div class="tab-pane fade" id="templates" role="tabpanel">oCapa()">
+                    <i class="fas fa-trash"></i> Limpar
+                </button>
+            </div>
+
+            <div class="alert alert-info mt-3 small">
+                <i class="fas fa-lightbulb"></i>
+                <strong>Dicas:</strong>
+                <ul class="mb-0 mt-2" style="padding-left: 1.2rem; font-size: 0.8rem;">
+                    <li>Arraste elementos para a capa</li>
+                    <li>Clique para selecionar</li>
+                    <li>Use as setas para mover</li>
+                    <li>Delete para excluir</li>
+                    <li>Ctrl+D para duplicar</li>
+                </ul>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ==================== CENTER PREVIEW ==================== -->
+    <div class="center-preview">
+        <div class="preview-toolbar">
+            <div class="toolbar-info">
+                <i class="fas fa-magic"></i>
+                <span>✨ Capa totalmente editável estilo Canvas!</span>
+            </div>
+            <div class="toolbar-actions">
+                <button class="btn btn-sm btn-outline-secondary" onclick="zoomOut()">
+                    <i class="fas fa-search-minus"></i>
+                </button>
+                <span id="zoomLevel">100%</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="zoomIn()">
+                    <i class="fas fa-search-plus"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="preview-container" id="previewContainer">
+            
+<!-- ✅ NOVA CAPA CANVAS -->
+<div class="page-cover editable-page canvas-cover" id="pageCover" 
+     ondrop="soltarElementoCapa(event)" 
+     ondragover="permitirSoltar(event)"
+     ondragleave="removerDragOver(event)">
+    
+    <!-- Background Customizável -->
+    <div class="cover-background" id="coverBackground"></div>
+    
+    <!-- Container de Elementos Arrastáveis -->
+    <div class="cover-canvas" id="coverCanvas"></div>
+    
+    <!-- Indicador de Drop Zone -->
+    <div class="drop-indicator" id="dropIndicator">
+        <i class="fas fa-hand-pointer"></i>
+        <p>🎨 Arraste elementos da sidebar ou clique nos botões</p>
+        <small style="display: block; margin-top: 0.5rem; opacity: 0.7;">
+            Pressione F1 para abrir o Editor de Capa
+        </small>
+    </div>
+</div>
+
+            <!-- ==================== SUMÁRIO ==================== -->
+            <div class="page-content editable-page" id="pageSumario">
+                <h2 class="section-title editable-text" contenteditable="true">SUMÁRIO</h2>
+                <ol class="sumario-list" id="sumarioList">
+                    <li class="editable-text" contenteditable="true">
+                        <span>IDENTIFICAÇÃO</span>
+                        <span>3</span>
+                    </li>
+                    <li class="editable-text" contenteditable="true">
+                        <span>APRESENTAÇÃO</span>
+                        <span>4</span>
+                    </li>
+                    <li class="editable-text" contenteditable="true">
+                        <span>CONDICIONANTE 4</span>
+                        <span>5</span>
+                    </li>
+                    <li class="editable-text" contenteditable="true">
+                        <span>RESULTADOS</span>
+                        <span>6</span>
+                    </li>
+                </ol>
+                
+                <div class="page-footer editable-footer">
+                    <p class="footer-text editable-text" contenteditable="true">
+                        <strong>NOVO NORDISK PRODUÇÃO FARMACÊUTICA DO BRASIL LTDA.</strong><br>
+                        <strong>FÁBRICA</strong> – Avenida "C", nº 1.413 - Distrito Industrial - Montes Claros - MG<br>
+                        <strong>Fone:</strong> 38-3229-6200 – <strong>E-mail:</strong> azla@novonordisk.com
+                    </p>
+                    <span class="page-number editable-text" contenteditable="true">2</span>
+                </div>
+            </div>
+
+            <!-- ==================== PÁGINA EXEMPLO ==================== -->
+            <div class="page-content editable-page">
+                <div class="editable-content">
+                    <h2 class="editable-text" contenteditable="true">1. IDENTIFICAÇÃO</h2>
+                    
+                    <h3 class="editable-text" contenteditable="true">1.1 Identificação do Empreendedor</h3>
+                    
+                    <table class="editable-table">
+                        <tbody>
+                            <tr>
+                                <td style="width: 30%;" contenteditable="true"><strong>Razão Social:</strong></td>
+                                <td contenteditable="true">Novo Nordisk Produção Farmacêutica do Brasil Ltda.</td>
+                            </tr>
+                            <tr>
+                                <td contenteditable="true"><strong>CNPJ:</strong></td>
+                                <td contenteditable="true">16.921.603/0001-66</td>
+                            </tr>
+                            <tr>
+                                <td contenteditable="true"><strong>Endereço:</strong></td>
+                                <td contenteditable="true">Av. C, nº 1413 Distrito Industrial; Montes Claros/MG</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                </div>
+                
+                <div class="page-footer editable-footer">
+                    <p class="footer-text editable-text" contenteditable="true">
+                        <strong>NOVO NORDISK PRODUÇÃO FARMACÊUTICA DO BRASIL LTDA.</strong><br>
+                        <strong>FÁBRICA</strong> – Avenida "C", nº 1.413 - Distrito Industrial - Montes Claros - MG<br>
+                        <strong>Fone:</strong> 38-3229-6200
+                    </p>
+                    <span class="page-number editable-text" contenteditable="true">3</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ==================== SIDEBAR DIREITA - AJUDA ==================== -->
+    <div class="right-sidebar" id="rightSidebar">
+        <button class="sidebar-close-btn" onclick="fecharSidebar('right')">
+            <i class="fas fa-times"></i>
+        </button>
+        
+        <div class="help-card">
+            <h3><i class="fas fa-rocket"></i> Recursos</h3>
+            
+            <div class="help-section">
+                <h4><i class="fas fa-magic"></i> Editor de Capa</h4>
+                <p>Arraste elementos da sidebar esquerda para criar uma capa personalizada!</p>
+            </div>
+
+            <div class="help-section">
+                <h4><i class="fas fa-check-double"></i> 100% Editável</h4>
+                <p><strong>Duplo clique</strong> em qualquer texto para editar!</p>
+            </div>
+
+            <div class="help-section">
+                <h4><i class="fas fa-mouse"></i> Clique Direito</h4>
+                <p>Menu contextual para inserir elementos nas páginas</p>
+            </div>
+
+            <div class="help-section">
+                <h4><i class="fas fa-arrows-alt"></i> Mover Elementos</h4>
+                <p>Arraste elementos na capa ou use as <strong>setas do teclado</strong></p>
+            </div>
+
+            <div class="help-section">
+                <h4><i class="fas fa-check-square"></i> Seleção Múltipla</h4>
+                <p><strong>Ctrl + Clique</strong> para selecionar vários elementos</p>
+            </div>
+
+            <hr>
+
+            <div class="shortcut-list">
+                <h4><i class="fas fa-keyboard"></i> Atalhos</h4>
+                <div class="shortcut-item">
+                    <kbd>F1</kbd>
+                    <span>Editor Capa</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>F2</kbd>
+                    <span>Ajuda</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>F3</kbd>
+                    <span>Abrir Ambos</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>Ctrl+S</kbd>
+                    <span>Salvar</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>Ctrl+D</kbd>
+                    <span>Duplicar</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>Del</kbd>
+                    <span>Excluir</span>
+                </div>
+                <div class="shortcut-item">
+                    <kbd>Setas</kbd>
+                    <span>Mover</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ==================== MENU DE CONTEXTO ==================== -->
+<div class="context-menu" id="contextMenu">
+    <div class="context-menu-header">
+        <i class="fas fa-magic"></i>
+        <span id="contextMenuTitle">Inserir Novo Elemento</span>
+    </div>
+    <ul class="context-menu-list">
+        <li class="context-menu-item context-menu-delete" id="menuExcluir" style="display: none;" onclick="excluirElementoContexto()">
+            <i class="fas fa-trash-alt"></i>
+            <span>Excluir Este Elemento</span>
+        </li>
+        <li class="context-menu-divider" id="dividerExcluir" style="display: none;"></li>
+        
+        <li class="context-menu-item" onclick="inserirElemento('titulo1')">
+            <i class="fas fa-heading"></i>
+            <span>Título Nível 1</span>
+        </li>
+        <li class="context-menu-item" onclick="inserirElemento('titulo2')">
+            <i class="fas fa-heading"></i>
+            <span>Título Nível 2</span>
+        </li>
+        <li class="context-menu-item" onclick="inserirElemento('titulo3')">
+            <i class="fas fa-heading"></i>
+            <span>Título Nível 3</span>
+        </li>
+        <li class="context-menu-divider"></li>
+        <li class="context-menu-item" onclick="inserirElemento('paragrafo')">
+            <i class="fas fa-paragraph"></i>
+            <span>Parágrafo</span>
+        </li>
+        <li class="context-menu-item" onclick="inserirElemento('lista')">
+            <i class="fas fa-list-ul"></i>
+            <span>Lista</span>
+        </li>
+        <li class="context-menu-divider"></li>
+        <li class="context-menu-item" onclick="inserirElemento('tabela')">
+            <i class="fas fa-table"></i>
+            <span>Tabela</span>
+        </li>
+        <li class="context-menu-item" onclick="mostrarModalUploadMultiplo()">
+            <i class="fas fa-images"></i>
+            <span>Upload Múltiplo</span>
+        </li>
+        <li class="context-menu-item" onclick="inserirElemento('imagem')">
+            <i class="fas fa-image"></i>
+            <span>Imagem</span>
+        </li>
+        <li class="context-menu-divider"></li>
+        <li class="context-menu-item" onclick="inserirElemento('quebra-pagina')">
+            <i class="fas fa-file-alt"></i>
+            <span>Nova Página</span>
+        </li>
+    </ul>
+</div>
+
+<!-- ==================== TOOLBAR SELEÇÃO MÚLTIPLA ==================== -->
+<div class="multi-selection-toolbar" id="multiSelectionToolbar">
+    <div class="selection-count">
+        <i class="fas fa-check-circle"></i>
+        <span id="selectionCount">0</span> selecionados
+    </div>
+    
+    <button class="toolbar-btn" onclick="selecionarTodos()">
+        <i class="fas fa-check-double"></i>
+        Selecionar Todos
+    </button>
+    
+    <button class="toolbar-btn" onclick="desselecionarTodos()">
+        <i class="fas fa-times-circle"></i>
+        Limpar Seleção
+    </button>
+    
+    <button class="toolbar-btn toolbar-btn-delete" onclick="excluirSelecionados()">
+        <i class="fas fa-trash-alt"></i>
+        Excluir Selecionados
+    </button>
+</div>
+
+<!-- ==================== INDICADOR MODO SELEÇÃO ==================== -->
+<div class="selection-mode-indicator" id="selectionModeIndicator">
+    <i class="fas fa-mouse-pointer"></i>
+    <strong>Modo de Seleção Ativo</strong>
+    <div style="font-size: 0.85rem; margin-top: 0.3rem;">
+        Ctrl + Clique para selecionar múltiplos
+    </div>
+</div>
+
+<!-- ==================== MODAIS ==================== -->
+
+<!-- Modal Tabela - VERSÃO CORRIGIDA -->
+<div class="modal fade" id="modalTabela" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-table me-2"></i> Inserir Tabela
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-6">
+                        <label for="tabelaLinhas">Linhas</label>
+                        <!-- ✅ ID CORRETO -->
+                        <input 
+                            type="number" 
+                            class="form-control" 
+                            id="tabelaLinhas" 
+                            value="3" 
+                            min="1" 
+                            max="20"
+                            placeholder="Digite o número de linhas"
+                        >
+                    </div>
+                    <div class="col-6">
+                        <label for="tabelaColunas">Colunas</label>
+                        <!-- ✅ ID CORRETO -->
+                        <input 
+                            type="number" 
+                            class="form-control" 
+                            id="tabelaColunas" 
+                            value="2" 
+                            min="1" 
+                            max="10"
+                            placeholder="Digite o número de colunas"
+                        >
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="confirmarTabela()">
+                    <i class="fas fa-check me-2"></i>Inserir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Imagem -->
+<div class="modal fade" id="modalImagem" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-image me-2"></i> Inserir Imagem
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Selecione a Imagem</label>
+                    <input type="file" class="form-control" id="imagemInput" accept="image/*">
+                </div>
+                <div class="form-group mt-3">
+                    <label>Legenda</label>
+                    <input type="text" class="form-control" id="legendaImagem" placeholder="Figura X - Descrição">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="confirmarImagem()">
+                    <i class="fas fa-check me-2"></i>Inserir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Upload Múltiplo -->
+<div class="modal fade" id="modalUploadMultiplo" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-images me-2"></i> Upload Múltiplo de Fotos
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Organize suas fotos:</strong> Selecione várias imagens. Grid 2x2 automático.
+                </div>
+
+                <div class="mb-3">
+                    <label for="prefixoLegenda" class="form-label"><strong>Prefixo da Legenda</strong></label>
+                    <input type="text" class="form-control" id="prefixoLegenda" value="Figura" placeholder="Ex: Umectação de vias">
+                </div>
+
+                <div class="mb-3">
+                    <label for="uploadMultiplo" class="form-label"><strong>Selecione as Imagens (máx. 8)</strong></label>
+                    <input type="file" class="form-control" id="uploadMultiplo" accept="image/*" multiple>
+                </div>
+
+                <div id="previewMultiplas" class="preview-multiplas mt-3" style="display:none;">
+                    <strong>Preview:</strong>
+                    <div id="gridPreview" class="grid-preview-mini"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="confirmarUploadMultiplo()">
+                    <i class="fas fa-check me-2"></i>Inserir Fotos
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Juntar PDF -->
+<div class="modal fade" id="modalJuntarPDF" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-pdf me-2"></i> Juntar PDF ao Final
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Como funciona:</strong> PDFs serão convertidos em imagens e adicionados ao final.
+                </div>
+
+                <div class="mb-3">
+                    <label for="pdfInput" class="form-label"><strong>Selecione PDF(s)</strong></label>
+                    <input type="file" class="form-control" id="pdfInput" accept="application/pdf" multiple>
+                </div>
+
+                <div id="pdfPreviewArea" class="pdf-preview-area" style="display: none;">
+                    <strong>📄 PDFs Selecionados:</strong>
+                    <div id="pdfList" class="pdf-list"></div>
+                    
+                    <div class="progress mt-3" style="display: none;" id="progressoPDF">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" id="barraProgresso" style="width: 0%">0%</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnJuntarPDF" onclick="confirmarJuntarPDF()">
+                    <i class="fas fa-plus-circle me-2"></i>Juntar PDF(s)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+// ✅ INICIALIZAÇÃO GARANTIDA
+window.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 DOM Carregado - Inicializando sistemas...');
+    
+    setTimeout(() => {
+        // Verificar elementos essenciais
+        const coverCanvas = document.getElementById('coverCanvas');
+        const coverBackground = document.getElementById('coverBackground');
+        const pageCover = document.getElementById('pageCover');
+        
+        console.log('📋 Verificação de Elementos:');
+        console.log('  coverCanvas:', coverCanvas ? '✅' : '❌');
+        console.log('  coverBackground:', coverBackground ? '✅' : '❌');
+        console.log('  pageCover:', pageCover ? '✅' : '❌');
+        
+        if (coverCanvas && coverBackground && pageCover) {
+            console.log('🎨 Todos os elementos encontrados!');
+        } else {
+            console.error('❌ Elementos da capa não encontrados!');
+        }
+    }, 500);
+});
+</script>
+<script>
+// ==================== PREVENÇÃO DE BUG DE CACHE ====================
+window.addEventListener('load', function() {
+    // Garantir que modais estão fechados ao carregar
+    setTimeout(() => {
+        document.querySelectorAll('.modal.show').forEach(modal => {
+            const instance = bootstrap.Modal.getInstance(modal);
+            if (instance) instance.hide();
+        });
+        
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+    }, 100);
+    
+    console.log('✅ Verificação pós-carregamento concluída');
+});
+
+// Capturar erros críticos
+window.addEventListener('error', function(event) {
+    console.error('❌ Erro capturado:', event.error);
+    
+    // Se erro crítico de elemento não encontrado
+    if (event.error && event.error.message && event.error.message.includes('Cannot read properties of null')) {
+        console.warn('⚠️ Erro de inicialização detectado. Tentando recuperar...');
+        setTimeout(() => location.reload(), 2000);
+    }
+});
+</script>
+<!-- ==================== SCRIPTS ==================== -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/script.js"></script> <!-- SEU SCRIPT DEPOIS -->
+    <!-- 2️⃣ html2canvas e jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- Mammoth.js - Conversão de .docx para HTML -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+<!-- JSZip - Necessário para Mammoth.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- 3️⃣ PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+    <!-- 4️⃣ SEU SCRIPT (DEVE VIR POR ÚLTIMO) -->
+    <script src="js/script.js"></script>
+    <!-- Biblioteca para exportação Word -->
+<script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.js"></script>
+</body>
+</html>
